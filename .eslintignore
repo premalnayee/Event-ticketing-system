@@ -1,0 +1,4 @@
+jest.config.js
+jest-mongodb-config.js
+node_modules/
+coverage/
