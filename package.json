@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node ./src/index.js",
     "watch": "nodemon ./src/index.js",
-    "test": "yarn jest -c ./jest.config.js"
+    "test": "npx jest -c ./jest.config.js"
   },
   "devDependencies": {
     "@shelf/jest-mongodb": "4.3.2",
