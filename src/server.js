@@ -1,7 +1,4 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-
 
 // Function that generates a unique ID using the current timestamp and random string.
 const generateUniqueId = () => {
@@ -13,13 +10,6 @@ const createService = async () => {
 
 	// Middleware to parse JSON bodies from requests
     app.use(express.json());
-
-    // Start the in-memory MongoDB server
-    const mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
-    const conn = await MongoClient.connect(uri);
-    const db = conn.db('event_ticketing_db');
-    const col = db.collection('events');
 
     app.get('/test', (req, res) => {
         res.send('hello world');
