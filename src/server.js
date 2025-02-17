@@ -2,6 +2,12 @@ const express = require('express');
 const { MongoClient } = require('mongodb');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 
+
+// Function that generates a unique ID using the current timestamp and random string.
+const generateUniqueId = () => {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 const createService = async () => {
     const app = express();
 
@@ -15,14 +21,11 @@ const createService = async () => {
     const db = conn.db('event_ticketing_db');
     const col = db.collection('events');
 
-    app.post('/test', (req, res) => {
-		console.log(req.body);
-        res.send('In-memory MongoDB is running.');
+    app.get('/test', (req, res) => {
+        res.send('hello world');
     });
 
     app.post('/events', (req, res) => {
-		console.log('POST /events');
-		console.log(req.body);
         const { name, date, capacity, costPerTicket } = req.body;
         if (!name || !date || !capacity || !costPerTicket) {
             return res.status(400).json({ error: 'Missing required event fields.' });
@@ -33,12 +36,12 @@ const createService = async () => {
             return res.status(400).json({ error: 'An event is already scheduled on this date.' });
         }
 
-        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const newEvent = { id, name, date, capacity, costPerTicket };
+        const eventId = generateUniqueId();
+        const newEvent = { eventId, name, date, capacity, costPerTicket };
 
         // Save the event to the in-memory database
 		app.locals.events.push(newEvent);
-        res.status(201).json({ id });
+        res.status(201).json({ eventId });
     });
 
 	app.get('/events', async (req, res) => {
@@ -46,50 +49,52 @@ const createService = async () => {
 		res.json(events);
 	});
 
-	app.post('/transactions', (req, res) => {
-        console.log('POST /transactions');
-        console.log(req.body);
-        const { event: eventId, nTickets } = req.body;
-        
-        // Validate input
-        if (!eventId || !nTickets || typeof nTickets !== 'number' || nTickets <= 0) {
-            return res.status(400).json({ error: 'Invalid request data. Ensure "event" and a positive number "nTickets" are provided.' });
+	app.post('/events/:eventId/tickets', (req, res) => {
+        const { nTickets } = req.body;
+        const eventId = req.params.eventId;
+    
+        // Validate nTickets input
+        if (!nTickets || typeof nTickets !== 'number' || nTickets <= 0) {
+            return res.status(400).json({ error: 'Invalid request data. Ensure a positive number "nTickets" is provided.' });
         }
-
+    
         // Ensure events list exists
         app.locals.events = app.locals.events || [];
-        
-        // Find the event by ID
-        const foundEvent = app.locals.events.find(ev => ev.id === eventId);
+    
+        // Find the event by its eventId
+        const foundEvent = app.locals.events.find(ev => ev.eventId === eventId);
         if (!foundEvent) {
             return res.status(404).json({ error: 'Event not found.' });
         }
-
+    
         // Initialize ticketsSold if not already set
         if (typeof foundEvent.ticketsSold !== 'number') {
             foundEvent.ticketsSold = 0;
         }
-
-        // Check if this transaction would exceed event capacity
+    
+        // Check if this ticket purchase would exceed the event's capacity
         if (foundEvent.ticketsSold + nTickets > foundEvent.capacity) {
             return res.status(400).json({ error: 'Transaction exceeds event capacity or event is sold out.' });
         }
-
-        // Record the transaction by updating ticketsSold and optionally tracking the transaction
+    
+        // Record the ticket purchase by updating ticketsSold
         foundEvent.ticketsSold += nTickets;
+    
+        // Record the transaction
         app.locals.transactions = app.locals.transactions || [];
+        const ticketId = generateUniqueId();
         const transaction = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: ticketId,
             event: eventId,
             nTickets,
             timestamp: new Date()
         };
         app.locals.transactions.push(transaction);
-
-        res.status(201).json({ transaction });
+    
+        res.status(200).json({ ticketId });
     });
 
-	app.get('/statistics', (req, res) => {
+	app.get('/events/stats', (req, res) => {
         // Get the current date and determine the start of the 12-month window.
         const now = new Date();
         const startMonth = new Date(now.getFullYear(), now.getMonth() - 11, 1);
@@ -147,8 +152,14 @@ const createService = async () => {
             return b.year - a.year;
         });
 
-        res.json(stats);
+        res.json({monthlyStats:stats});
     });
+
+    close = async () => {
+        await conn.close();
+        await mongod.stop();
+        await app.close();
+    }
 
     return app;
 };
